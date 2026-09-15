@@ -137,7 +137,22 @@ function ResultScreen({ score }: { score: number }) {
         wiadomości, sprawdź folder Oferty i Spam.
       </p>
 
-      <section className={styles.resultBridge} aria-labelledby="bridge-title">
+      <a
+        className={styles.resultScrollCue}
+        href="#bridge-title"
+        aria-label="Przejdź do dalszej części wyniku"
+      >
+        <span>Czytaj dalej</span>
+        <svg viewBox="0 0 24 28" aria-hidden="true">
+          <path d="m5 6 7 7 7-7" />
+          <path d="m5 14 7 7 7-7" />
+        </svg>
+      </a>
+
+      <section
+        className={styles.resultBridge}
+        aria-labelledby="bridge-title"
+      >
         <div className={styles.resultBridgeCopy}>
           <h2 id="bridge-title">
             Jaki krok chcesz zrobić, ale wciąż go odkładasz?
@@ -558,10 +573,6 @@ export function SelfAssessment() {
           <div className={styles.intro}>
             <p className={styles.eyebrow}>Bezpłatny test samooceny</p>
             <h1 id="page-title">Jak oceniasz siebie?</h1>
-            <p className={styles.leadStatement}>
-              Czeka Cię ważna rozmowa, masz wysłać ofertę albo powiedzieć komuś,
-              czego potrzebujesz – i znów wątpisz w siebie?
-            </p>
             <p className={styles.lead}>
               Kompetencje masz. Sprawdź, czy ufasz sobie na tyle, żeby z nich
               korzystać. Odpowiedz na 10 pytań, odbierz wynik i jedno praktyczne
