@@ -132,22 +132,31 @@ function ResultScreen({ score }: { score: number }) {
         </div>
       </section>
 
+      <p className={styles.resultEmailNotice}>
+        Wynik i ćwiczenie otrzymasz też na Twój e-mail. Jeśli nie widzisz
+        wiadomości, sprawdź folder Oferty i Spam.
+      </p>
+
       <section className={styles.resultBridge} aria-labelledby="bridge-title">
         <div className={styles.resultBridgeCopy}>
           <h2 id="bridge-title">
-            Już wiesz, od czego zaczynasz. Teraz możesz pójść dalej.
+            Jaki krok chcesz zrobić, ale wciąż go odkładasz?
           </h2>
           <p>
-            Wellena to 30-dniowy indywidualny program budowania pewności siebie z
-            osobistą przewodniczką AI. Pomaga Ci lepiej poznać siebie, znaleźć
-            realne podstawy zaufania do siebie i przełożyć je na działanie.
+            Rozmowę o awansie, wysłanie oferty, a może powiedzenie komuś o swoich
+            potrzebach?
+          </p>
+          <p>
+            Wellena to 30-dniowy program z osobistą przewodniczką AI – prywatnie,
+            bez grupy. Przez rozmowy, ćwiczenia i małe działania pomaga zrozumieć,
+            co Cię zatrzymuje, i budować zaufanie do siebie na tym, co już masz.
           </p>
         </div>
         <a
           className={[styles.primaryButton, styles.resultBridgeCta].join(" ")}
           href="https://wellena.pl"
         >
-          Zrób kolejny krok z Welleną →
+          Zobacz, jak działa Wellena
         </a>
       </section>
 
@@ -258,8 +267,8 @@ function ResultScreen({ score }: { score: number }) {
           <div className={styles.wellenaLead}>
             <div className={styles.wellenaVisual}>
               <Image
-                src="/brand/wellena-spokojna-sprawczosc.png"
-                alt="Kobieta porządkująca notatki przed podjęciem działania"
+                src="/brand/kobieta-nad-dokumentami-przy-regalach.webp"
+                alt="Kobieta porządkująca dokumenty przy regałach"
                 fill
                 sizes="(max-width: 960px) 100vw, 46vw"
               />
@@ -267,14 +276,42 @@ function ResultScreen({ score }: { score: number }) {
 
             <div className={styles.wellenaCopy}>
               <h2 id="wellena-title">
-                Nie zawsze brakuje Ci kompetencji. Czasem najbardziej zatrzymuje
-                Cię brak zaufania do siebie.
+                Wiesz, co chcesz zrobić. Ale czekasz, aż poczujesz się pewniej.
               </h2>
               <p className={styles.wellenaSummary}>
-                Wellena pomoże Ci zobaczyć, na czym możesz się oprzeć, zrozumieć,
-                co Cię zatrzymuje, i przełożyć wnioski na małe, konkretne
-                działania w codziennym życiu.
+                Wellena pomaga Ci przyjrzeć się wątpliwościom, dostrzec własne
+                mocne strony i wybrać mały krok – w pracy, własnym biznesie lub
+                ważnej sprawie osobistej.
               </p>
+              <ul className={styles.wellenaFacts}>
+                <li>
+                  <span aria-hidden="true">⏱</span>
+                  <span>
+                    30 dni, 3 rozmowy w tygodniu po 20–50 minut – w Twoim tempie
+                  </span>
+                </li>
+                <li>
+                  <span aria-hidden="true">🔒</span>
+                  <span>
+                    Prywatnie. Bez grupy, bez wystawiania się, bez oceniania
+                  </span>
+                </li>
+                <li>
+                  <span aria-hidden="true">📖</span>
+                  <span>
+                    Metoda oparta na psychologii pozytywnej, nie na motywacyjnych
+                    hasłach
+                  </span>
+                </li>
+              </ul>
+              <a
+                className={[styles.primaryButton, styles.wellenaOutlineCta].join(
+                  " ",
+                )}
+                href="https://wellena.pl"
+              >
+                Zobacz, jak działa Wellena
+              </a>
             </div>
           </div>
 
@@ -299,7 +336,7 @@ function ResultScreen({ score }: { score: number }) {
               className={[styles.primaryButton, styles.wellenaCta].join(" ")}
               href="https://wellena.pl"
             >
-              Zobacz, jak działa Wellena
+              Zrób kolejny krok z Welleną
             </a>
           </div>
         </div>
@@ -490,6 +527,7 @@ export function SelfAssessment() {
           aria-label="Pracownia Życia — strona główna"
         >
           <Image
+            className={styles.headerPracowniaLogo}
             src="/brand/logotyp-poziomy-deskryptor--grafit-krem.svg"
             alt="Pracownia Życia — Mental Fitness"
             width={300}
@@ -497,15 +535,19 @@ export function SelfAssessment() {
             priority
           />
         </a>
-        {stage === "result" && (
-          <a
-            className={styles.headerWellenaPlaceholder}
-            href="https://wellena.pl"
-            aria-label="Wellena — miejsce na logo"
-          >
-            Miejsce na logo Welleny
-          </a>
-        )}
+        <a
+          className={styles.headerWellenaLink}
+          href="https://wellena.pl"
+          aria-label="Wellena — strona programu"
+        >
+          <Image
+            className={styles.headerWellenaLogo}
+            src="/brand/wellena-logo-horizontal-color-transparent-1200.png"
+            alt="Wellena"
+            width={1200}
+            height={400}
+          />
+        </a>
       </header>
 
       {stage === "result" && score !== null ? (
@@ -517,13 +559,13 @@ export function SelfAssessment() {
             <p className={styles.eyebrow}>Bezpłatny test samooceny</p>
             <h1 id="page-title">Jak oceniasz siebie?</h1>
             <p className={styles.leadStatement}>
-              To, jak oceniasz siebie, wiąże się z tym, na ile sobie ufasz.
+              Czeka Cię ważna rozmowa, masz wysłać ofertę albo powiedzieć komuś,
+              czego potrzebujesz – i znów wątpisz w siebie?
             </p>
             <p className={styles.lead}>
-              Dziesięć krótkich pytań pomoże Ci zobaczyć, jak wygląda Twoja
-              relacja ze sobą. Po zakończeniu otrzymasz wynik, kontekst i
-              praktyczne ćwiczenie, które pomogą Ci budować większą pewność
-              siebie.
+              Kompetencje masz. Sprawdź, czy ufasz sobie na tyle, żeby z nich
+              korzystać. Odpowiedz na 10 pytań, odbierz wynik i jedno praktyczne
+              ćwiczenie na pewność siebie.
             </p>
             <p className={styles.meta}>
               <span>2–3 minuty</span>
