@@ -688,17 +688,15 @@ export function SelfAssessment() {
                       />
                       <label htmlFor="marketing-consent">
                         Wyrażam zgodę na otrzymywanie od Pracowni Życia drogą
-                        e-mail treści o pewności siebie oraz informacji
-                        marketingowych o programie Wellena. Zgoda jest wymagana,
-                        aby otrzymać wynik testu. Mogę ją wycofać w każdej chwili.{" "}
+                        e-mail treści marketingowych zgodnie z{" "}
                         <a
                           href="https://pracowniazycia.pl/polityka-prywatnosci-bezpieczenstwa-i-cookies/"
                           target="_blank"
                           rel="noreferrer"
                         >
-                          Polityka prywatności
+                          Polityką prywatności
                         </a>
-                        .
+                        . Zgodę mogę wycofać w każdej chwili.
                       </label>
                     </div>
 
