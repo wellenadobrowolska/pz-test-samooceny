@@ -10,6 +10,7 @@ import {
 import {
   ANSWER_OPTIONS,
   QUESTIONS,
+  TEST_VERSION,
 } from "@/domain/self-esteem-v1/questions";
 import {
   isAnswerValue,
@@ -24,6 +25,7 @@ import {
   PRIVACY_POLICY_URL,
 } from "@/domain/leads/contract";
 import type { AnswerValue } from "@/domain/self-esteem-v1/types";
+import { trackEvent } from "@/lib/analytics";
 import {
   createSubmissionId,
   LeadSubmissionError,
@@ -93,6 +95,19 @@ function ResultGauge({ score }: { score: number }) {
       </div>
     </div>
   );
+}
+
+function trackWellenaClick(
+  event: React.MouseEvent<HTMLAnchorElement>,
+  ctaLocation: string,
+) {
+  const link = event.currentTarget;
+  trackEvent({
+    event: "wellena_cta_click",
+    ctaLocation,
+    linkUrl: link.href,
+    linkText: link.innerText || link.getAttribute("aria-label") || "",
+  });
 }
 
 function ResultScreen({ score }: { score: number }) {
@@ -170,6 +185,7 @@ function ResultScreen({ score }: { score: number }) {
         <a
           className={[styles.primaryButton, styles.resultBridgeCta].join(" ")}
           href="https://wellena.pl"
+          onClick={(event) => trackWellenaClick(event, "wynik-pytanie")}
         >
           Zobacz, jak działa Wellena
         </a>
@@ -324,6 +340,7 @@ function ResultScreen({ score }: { score: number }) {
                   " ",
                 )}
                 href="https://wellena.pl"
+                onClick={(event) => trackWellenaClick(event, "wynik-wellena")}
               >
                 Zobacz, jak działa Wellena
               </a>
@@ -350,6 +367,7 @@ function ResultScreen({ score }: { score: number }) {
             <a
               className={[styles.primaryButton, styles.wellenaCta].join(" ")}
               href="https://wellena.pl"
+              onClick={(event) => trackWellenaClick(event, "wynik-program")}
             >
               Zrób kolejny krok z Welleną
             </a>
@@ -379,6 +397,15 @@ export function SelfAssessment() {
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const submittingRef = useRef(false);
   const submissionRef = useRef<{ email: string; id: string } | null>(null);
+  // Każde zdarzenie lejka liczymy raz na wejście, pytania raz na numer —
+  // cofanie się i ponowne renderowanie nie dubluje danych w raportach.
+  const tracked = useRef({
+    view: false,
+    start: false,
+    complete: false,
+    result: false,
+    questions: new Set<number>(),
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -416,6 +443,33 @@ export function SelfAssessment() {
   }, [currentIndex, hydrated, stage]);
 
   useEffect(() => {
+    if (!hydrated) return;
+    const seen = tracked.current;
+
+    if (stage !== "result" && !seen.view) {
+      seen.view = true;
+      trackEvent({ event: "self_assessment_view", testVersion: TEST_VERSION });
+    }
+
+    if (stage === "questions" && !seen.questions.has(currentIndex)) {
+      seen.questions.add(currentIndex);
+      trackEvent({
+        event: "self_assessment_question_view",
+        testVersion: TEST_VERSION,
+        questionNumber: currentIndex + 1,
+      });
+    }
+
+    if (stage === "result" && !seen.result) {
+      seen.result = true;
+      trackEvent({
+        event: "self_assessment_result_view",
+        testVersion: TEST_VERSION,
+      });
+    }
+  }, [currentIndex, hydrated, stage]);
+
+  useEffect(() => {
     if (!hydrated || stage !== "result") return;
 
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -433,6 +487,19 @@ export function SelfAssessment() {
 
   const selectAnswer = (value: AnswerValue) => {
     if (isAdvancing) return;
+
+    const seen = tracked.current;
+    if (!seen.start && answers.every((answer) => answer === null)) {
+      seen.start = true;
+      trackEvent({ event: "self_assessment_start", testVersion: TEST_VERSION });
+    }
+    if (!seen.complete && currentIndex === QUESTIONS.length - 1) {
+      seen.complete = true;
+      trackEvent({
+        event: "self_assessment_complete",
+        testVersion: TEST_VERSION,
+      });
+    }
 
     setAnswers((current) => {
       const updated = [...current];
@@ -505,6 +572,11 @@ export function SelfAssessment() {
         submissionId: submissionRef.current.id,
         website,
       });
+      // Dopiero po zapisaniu leada. Bez adresu i bez wyniku — tylko fakt wysłania.
+      trackEvent({
+        event: "self_assessment_email_submit",
+        testVersion: TEST_VERSION,
+      });
       persistResult(calculatedScore);
       clearProgress();
       setScore(calculatedScore);
@@ -548,6 +620,7 @@ export function SelfAssessment() {
           className={styles.headerWellenaLink}
           href="https://wellena.pl"
           aria-label="Wellena — strona programu"
+          onClick={(event) => trackWellenaClick(event, "naglowek")}
         >
           <Image
             className={styles.headerWellenaLogo}
