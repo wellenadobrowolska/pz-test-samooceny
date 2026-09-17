@@ -1,0 +1,132 @@
+import { parseLeadRequest, type LeadErrorCode } from "../../../domain/leads/contract";
+
+export const runtime = "nodejs";
+export const maxDuration = 30;
+
+const MAX_BODY_BYTES = 4096;
+const RESPONSE_HEADERS = { "Cache-Control": "no-store" };
+
+function failure(error: LeadErrorCode, status: number): Response {
+  return Response.json({ ok: false, error }, { status, headers: RESPONSE_HEADERS });
+}
+
+function isSameOrigin(request: Request): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin || request.headers.get("sec-fetch-site") === "cross-site") {
+    return false;
+  }
+  try {
+    return new URL(origin).origin === new URL(request.url).origin;
+  } catch {
+    return false;
+  }
+}
+
+function readConfiguration(): { url: string; secret: string } | null {
+  const url = process.env.GOOGLE_SHEETS_WEB_APP_URL;
+  const secret = process.env.GOOGLE_SHEETS_SHARED_SECRET;
+  if (!url || !secret || secret.length < 32 || secret.length > 256) return null;
+  try {
+    const parsed = new URL(url);
+    if (
+      parsed.protocol !== "https:" ||
+      parsed.hostname !== "script.google.com" ||
+      parsed.port ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash ||
+      !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(parsed.pathname)
+    ) {
+      return null;
+    }
+    return { url: parsed.href, secret };
+  } catch {
+    return null;
+  }
+}
+
+async function readBody(request: Request): Promise<unknown> {
+  const reader = request.body?.getReader();
+  if (!reader) throw new Error("missing_body");
+  const decoder = new TextDecoder();
+  let size = 0;
+  let text = "";
+  try {
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      size += chunk.value.byteLength;
+      if (size > MAX_BODY_BYTES) {
+        await reader.cancel();
+        throw new Error("body_too_large");
+      }
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+    text += decoder.decode();
+    return JSON.parse(text);
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+export async function POST(request: Request): Promise<Response> {
+  if (!isSameOrigin(request)) return failure("invalid_request", 403);
+  if (
+    request.headers.get("content-type")?.split(";")[0].trim() !==
+    "application/json"
+  ) {
+    return failure("invalid_request", 415);
+  }
+
+  let body: unknown;
+  try {
+    body = await readBody(request);
+  } catch {
+    return failure("invalid_request", 400);
+  }
+  const parsed = parseLeadRequest(body);
+  if (!parsed.ok) return failure(parsed.error, 422);
+  // Honeypot submissions are rejected, never stored or acknowledged as saved.
+  if (parsed.lead.website !== "") return failure("invalid_request", 422);
+
+  const configuration = readConfiguration();
+  if (!configuration) return failure("not_configured", 503);
+
+  try {
+    // Deliberately exclude answers, score, IP and browser telemetry.
+    const { email, marketingConsent, consentVersion, testVersion, submissionId } =
+      parsed.lead;
+    const response = await fetch(configuration.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      redirect: "follow",
+      signal: AbortSignal.timeout(18_000),
+      body: JSON.stringify({
+        email,
+        marketingConsent,
+        consentVersion,
+        testVersion,
+        submissionId,
+        secret: configuration.secret,
+        submittedAt: new Date().toISOString(),
+      }),
+    });
+    if (!response.ok) return failure("save_unavailable", 502);
+    const result: unknown = await response.json();
+    const data =
+      result !== null && typeof result === "object"
+        ? (result as Record<string, unknown>)
+        : {};
+    // Apps Script can return HTTP 200 for a rejected or failed write.
+    if (data.ok !== true) {
+      if (data.error === "rate_limited") return failure("rate_limited", 429);
+      return failure("save_unavailable", 502);
+    }
+    return Response.json({ ok: true }, { headers: RESPONSE_HEADERS });
+  } catch {
+    // Never log upstream responses, secrets, email addresses or request bodies.
+    return failure("save_unavailable", 502);
+  }
+}

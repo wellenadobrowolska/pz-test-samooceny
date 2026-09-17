@@ -5,6 +5,16 @@
 **Produkt docelowy:** publiczny test samooceny Pracowni Życia prowadzący do 30-dniowego programu Wellena  
 **Zatwierdzony adres wdrożenia:** `test-samooceny.pracowniazycia.pl`
 
+> **Aktualizacja przejściowa — 2026-09-17:** Do podłączenia systemu mailingowego
+> obowiązuje wariant opisany w `integrations/google-sheets/README.md`: prywatny
+> Arkusz Google przechowuje e-mail, datę i potwierdzenie zgody, ale nie wynik ani
+> odpowiedzi. Serwerowy `POST /api/leads` potwierdza zapis przed pokazaniem
+> wyniku. Wynik i ćwiczenie są tylko na ekranie; nie obiecujemy kopii e-mailowej.
+> Opcjonalne powiadomienie właścicielki nie jest wiadomością do uczestniczki.
+> Przed wdrożeniem wymagane są konfiguracja Google/Vercela i test odbiorowy.
+> Poniższe wymagania dotyczące wysyłki i MailerLite opisują wariant docelowy,
+> nie aktualnie działającą integrację.
+
 ## 1. Cel
 
 Celem jest uruchomienie lekkiej, dostępnej aplikacji internetowej, która:

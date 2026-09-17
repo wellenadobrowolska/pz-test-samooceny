@@ -4,7 +4,7 @@ Publiczny, bezpłatny test samooceny Pracowni Życia prowadzący do 30-dniowego 
 
 ## Status
 
-Pierwsza działająca wersja aplikacji jest gotowa lokalnie. Zawiera:
+Aplikacja zawiera:
 
 - responsywny ekran startowy i 10 pytań;
 - automatyczne przechodzenie między pytaniami i zapamiętywanie postępu przez 24 godziny;
@@ -12,7 +12,21 @@ Pierwsza działająca wersja aplikacji jest gotowa lokalnie. Zawiera:
 - treść edukacyjną, ćwiczenie i przejście do 30-dniowego programu Wellena;
 - testy mechaniki punktacji.
 
-Wysyłka wyniku na adres e-mail jest na razie symulowana w interfejsie. Integracja z dostawcą poczty i analityka zostaną dodane przed publikacją.
+Przygotowano tymczasowy zapis kontaktów w prywatnym Arkuszu Google przez
+serwerowy `POST /api/leads` i Google Apps Script. Ekran wyniku jest odsłaniany
+dopiero po potwierdzonym zapisie; nie wysyłamy jeszcze wyniku uczestniczce
+e-mailem. Opcjonalne powiadomienia dla właścicielki nie są kopią wyniku.
+
+**Integracja nie jest aktywna bez konfiguracji Google i Vercela.** Nie wdrażaj
+nowego formularza publicznie przed wykonaniem instrukcji i testu odbiorowego.
+Brak konfiguracji lub błąd zapisu daje czytelny komunikat zamiast pozornego
+sukcesu. Zobacz [instrukcję uruchomienia](integrations/google-sheets/README.md).
+
+Zapis obejmuje e-mail, datę, zgodę i jej wersję. Odpowiedzi, wynik, IP i dane
+analityczne nie trafiają do arkusza. Sekret i adres skryptu są wyłącznie w
+serwerowych zmiennych środowiskowych. Arkusz nie może być publicznie udostępniony.
+
+Integracja z docelowym systemem mailingowym i analityka pozostają do wdrożenia.
 
 ## Uruchomienie lokalne
 
@@ -29,6 +43,7 @@ Kontrola jakości:
 pnpm lint
 pnpm test
 pnpm build
+node --test integrations/google-sheets/Code.test.mjs
 ```
 
 ## Zatwierdzony kierunek techniczny
@@ -44,6 +59,9 @@ pnpm build
 
 ## Dokumentacja
 
+- [`integrations/google-sheets/README.md`](integrations/google-sheets/README.md) — konfiguracja tymczasowego zapisu i test odbiorowy;
+- [`integrations/google-sheets/Code.gs`](integrations/google-sheets/Code.gs) — gotowy skrypt do Google Apps Script;
+- [`.env.example`](.env.example) — nazwy dwóch serwerowych ustawień Vercela (bez sekretów);
 - [`SPECYFIKACJA_WDROZENIOWA_TESTU_v1.md`](./SPECYFIKACJA_WDROZENIOWA_TESTU_v1.md) — przebieg, architektura i kryteria odbioru;
 - [`TEST_SAMOOCENY_MECHANIKA_v1.md`](./TEST_SAMOOCENY_MECHANIKA_v1.md) — pytania i źródło prawdy dla punktacji;
 - [`TEST SAMOOCENY PŻ.txt`](./TEST%20SAMOOCENY%20PŻ.txt) — robocza treść landingu;

@@ -370,6 +370,33 @@
   box-shadow: 0 0 0 3px rgba(63, 94, 90, 0.17);
 }
 
+.emailNote {
+  margin: 0;
+  color: rgba(44, 42, 42, 0.7);
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+
+.formError {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(112, 62, 60, 0.3);
+  border-radius: 10px;
+  background: rgba(193, 152, 149, 0.13);
+  color: #703e3c;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.honeypot {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .consent {
   display: grid;
   grid-template-columns: 19px 1fr;

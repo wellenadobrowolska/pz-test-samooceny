@@ -10,34 +10,34 @@ import {
 import {
   ANSWER_OPTIONS,
   QUESTIONS,
-  TEST_VERSION,
 } from "@/domain/self-esteem-v1/questions";
 import {
   isAnswerValue,
   scoreAnswers,
   scoreProgress,
 } from "@/domain/self-esteem-v1/score";
+import {
+  isValidEmail,
+  MARKETING_CONSENT_INTRO,
+  MARKETING_CONSENT_WITHDRAWAL,
+  normalizeEmail,
+  PRIVACY_POLICY_URL,
+} from "@/domain/leads/contract";
 import type { AnswerValue } from "@/domain/self-esteem-v1/types";
+import {
+  createSubmissionId,
+  LeadSubmissionError,
+  submitLead,
+} from "@/lib/leads/submit-lead";
+import {
+  clearProgress,
+  persistProgress,
+  persistResult,
+  restoreAssessment,
+} from "./progress-storage";
 import styles from "./SelfAssessment.module.css";
 
-const STORAGE_KEY = "pz-self-assessment-v1";
-const RESULT_STORAGE_KEY = "pz-self-assessment-result-v1";
-const STORAGE_TTL = 24 * 60 * 60 * 1000;
-
 type Stage = "questions" | "email" | "result";
-
-type StoredProgress = {
-  version: string;
-  answers: Array<AnswerValue | null>;
-  currentIndex: number;
-  stage: Exclude<Stage, "result">;
-  expiresAt: number;
-};
-
-type StoredResult = {
-  version: string;
-  score: number;
-};
 
 const emptyAnswers = (): Array<AnswerValue | null> =>
   Array.from({ length: QUESTIONS.length }, () => null);
@@ -133,8 +133,8 @@ function ResultScreen({ score }: { score: number }) {
       </section>
 
       <p className={styles.resultEmailNotice}>
-        Wynik i ćwiczenie otrzymasz też na Twój e-mail. Jeśli nie widzisz
-        wiadomości, sprawdź folder Oferty i Spam.
+        Wynik i ćwiczenie są dostępne na tej stronie. Na razie nie wysyłamy
+        ich e-mailem.
       </p>
 
       <a
@@ -372,8 +372,13 @@ export function SelfAssessment() {
   const [hydrated, setHydrated] = useState(false);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [emailInvalid, setEmailInvalid] = useState(false);
+  const [website, setWebsite] = useState("");
   const questionRef = useRef<HTMLLegendElement>(null);
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const submittingRef = useRef(false);
+  const submissionRef = useRef<{ email: string; id: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -381,55 +386,16 @@ export function SelfAssessment() {
     queueMicrotask(() => {
       if (cancelled) return;
 
-      try {
-        const rawResult = window.sessionStorage.getItem(RESULT_STORAGE_KEY);
-        if (rawResult) {
-          const storedResult = JSON.parse(rawResult) as StoredResult;
-          const validScore =
-            Number.isInteger(storedResult.score) &&
-            storedResult.score >= 10 &&
-            storedResult.score <= 40;
-
-          if (storedResult.version === TEST_VERSION && validScore) {
-            setScore(storedResult.score);
-            setStage("result");
-            window.localStorage.removeItem(STORAGE_KEY);
-            return;
-          }
-
-          window.sessionStorage.removeItem(RESULT_STORAGE_KEY);
-        }
-
-        const raw = window.localStorage.getItem(STORAGE_KEY);
-        if (!raw) return;
-
-        const stored = JSON.parse(raw) as StoredProgress;
-        const validAnswers =
-          Array.isArray(stored.answers) &&
-          stored.answers.length === QUESTIONS.length &&
-          stored.answers.every(
-            (answer) => answer === null || isAnswerValue(answer),
-          );
-
-        if (
-          stored.version !== TEST_VERSION ||
-          stored.expiresAt <= Date.now() ||
-          !validAnswers
-        ) {
-          window.localStorage.removeItem(STORAGE_KEY);
-          return;
-        }
-
+      const stored = restoreAssessment();
+      if (stored?.kind === "result") {
+        setScore(stored.score);
+        setStage("result");
+      } else if (stored?.kind === "progress") {
         setAnswers(stored.answers);
-        setCurrentIndex(
-          Math.min(Math.max(stored.currentIndex, 0), QUESTIONS.length - 1),
-        );
-        setStage(stored.stage === "email" ? "email" : "questions");
-      } catch {
-        window.localStorage.removeItem(STORAGE_KEY);
-      } finally {
-        setHydrated(true);
+        setCurrentIndex(stored.currentIndex);
+        setStage(stored.stage);
       }
+      setHydrated(true);
     });
 
     return () => {
@@ -440,15 +406,7 @@ export function SelfAssessment() {
   useEffect(() => {
     if (!hydrated || stage === "result") return;
 
-    const stored: StoredProgress = {
-      version: TEST_VERSION,
-      answers,
-      currentIndex,
-      stage,
-      expiresAt: Date.now() + STORAGE_TTL,
-    };
-
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    persistProgress({ answers, currentIndex, stage });
   }, [answers, currentIndex, hydrated, stage]);
 
   useEffect(() => {
@@ -494,6 +452,8 @@ export function SelfAssessment() {
   };
 
   const goBack = () => {
+    if (submittingRef.current) return;
+    setSubmitError(null);
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
     setIsAdvancing(false);
 
@@ -508,27 +468,61 @@ export function SelfAssessment() {
 
   const submitEmail = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!hasCompleteAnswers(answers) || !marketingConsent) return;
+    if (submittingRef.current) return;
+    setSubmitError(null);
+    setEmailInvalid(false);
+    if (!hasCompleteAnswers(answers)) {
+      const missingIndex = answers.findIndex((answer) => !isAnswerValue(answer));
+      setCurrentIndex(Math.max(0, missingIndex));
+      setStage("questions");
+      setSubmitError("Odpowiedz na wszystkie pytania, aby otrzymać wynik.");
+      return;
+    }
+    const normalizedEmail = normalizeEmail(email);
+    if (!isValidEmail(normalizedEmail)) {
+      setEmailInvalid(true);
+      setSubmitError("Sprawdź, czy adres e-mail jest poprawny.");
+      return;
+    }
+    if (!marketingConsent) {
+      setSubmitError("Zaznacz zgodę, aby przejść do wyniku.");
+      return;
+    }
 
+    submittingRef.current = true;
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 450));
-    const calculatedScore = scoreAnswers(answers);
-
     try {
-      const storedResult: StoredResult = {
-        version: TEST_VERSION,
-        score: calculatedScore,
-      };
-      window.sessionStorage.setItem(
-        RESULT_STORAGE_KEY,
-        JSON.stringify(storedResult),
+      if (submissionRef.current?.email !== normalizedEmail) {
+        // Reuse this ID on retries, including an upstream timeout after a write.
+        submissionRef.current = {
+          email: normalizedEmail,
+          id: createSubmissionId(),
+        };
+      }
+      const calculatedScore = scoreAnswers(answers);
+      await submitLead({
+        email: normalizedEmail,
+        submissionId: submissionRef.current.id,
+        website,
+      });
+      persistResult(calculatedScore);
+      clearProgress();
+      setScore(calculatedScore);
+      setStage("result");
+      // Keep the contact out of browser storage and discard it from React state.
+      setEmail("");
+      setMarketingConsent(false);
+      submissionRef.current = null;
+    } catch (error) {
+      setSubmitError(
+        error instanceof LeadSubmissionError
+          ? error.message
+          : "Nie udało się przygotować wyniku. Spróbuj ponownie.",
       );
-    } catch {}
-
-    setScore(calculatedScore);
-    setStage("result");
-    setIsSubmitting(false);
-    window.localStorage.removeItem(STORAGE_KEY);
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   const progress = ((currentIndex + 1) / QUESTIONS.length) * 100;
@@ -583,7 +577,7 @@ export function SelfAssessment() {
               <span aria-hidden="true">·</span>
               <span>bezpłatnie</span>
               <span aria-hidden="true">·</span>
-              <span>wynik od razu na adres e-mail</span>
+              <span>wynik od razu na ekranie</span>
             </p>
             <div className={styles.guidance}>
               <span className={styles.guidanceMark} aria-hidden="true">
@@ -600,6 +594,11 @@ export function SelfAssessment() {
               <div className={styles.card}>
               {stage === "questions" && (
                 <div className={styles.questionView}>
+                  {submitError && (
+                    <p className={styles.formError} role="alert">
+                      {submitError}
+                    </p>
+                  )}
                   <div className={styles.progressHeader}>
                     <span>
                       Pytanie {currentIndex + 1} z {QUESTIONS.length}
@@ -666,12 +665,17 @@ export function SelfAssessment() {
               {stage === "email" && (
                 <div className={styles.emailView}>
                   <p className={styles.cardEyebrow}>Wynik jest gotowy</p>
-                  <h2>Gdzie wysłać Twój wynik?</h2>
+                  <h2>Zobacz Twój wynik</h2>
                   <p className={styles.cardLead}>
-                    Podaj adres e-mail, na który otrzymasz wynik testu.
+                    Podaj adres e-mail, aby zobaczyć wynik testu.
                   </p>
 
-                  <form onSubmit={submitEmail} className={styles.emailForm}>
+                  <form
+                    onSubmit={submitEmail}
+                    className={styles.emailForm}
+                    noValidate
+                    aria-busy={isSubmitting}
+                  >
                     <label className={styles.emailLabel} htmlFor="email">
                       Adres e-mail
                     </label>
@@ -681,10 +685,36 @@ export function SelfAssessment() {
                       type="email"
                       autoComplete="email"
                       required
+                      maxLength={254}
+                      disabled={isSubmitting}
+                      aria-invalid={emailInvalid}
+                      aria-describedby={submitError ? "email-note email-error" : "email-note"}
                       value={email}
-                      onChange={(event) => setEmail(event.target.value)}
+                      onChange={(event) => {
+                        setEmail(event.target.value);
+                        setEmailInvalid(false);
+                        setSubmitError(null);
+                      }}
                       placeholder="twoj@email.pl"
                     />
+
+                    <p id="email-note" className={styles.emailNote}>
+                      Wynik zobaczysz od razu na tej stronie. Na razie nie
+                      wysyłamy go e-mailem.
+                    </p>
+
+                    <div className={styles.honeypot} aria-hidden="true">
+                      <label htmlFor="website">Pozostaw to pole puste</label>
+                      <input
+                        id="website"
+                        name="website"
+                        type="text"
+                        autoComplete="off"
+                        tabIndex={-1}
+                        value={website}
+                        onChange={(event) => setWebsite(event.target.value)}
+                      />
+                    </div>
 
                     <div className={styles.consent}>
                       <input
@@ -692,24 +722,32 @@ export function SelfAssessment() {
                         name="marketingConsent"
                         type="checkbox"
                         required
+                        disabled={isSubmitting}
+                        aria-describedby={submitError ? "email-error" : undefined}
                         checked={marketingConsent}
-                        onChange={(event) =>
-                          setMarketingConsent(event.target.checked)
-                        }
+                        onChange={(event) => {
+                          setMarketingConsent(event.target.checked);
+                          setSubmitError(null);
+                        }}
                       />
                       <label htmlFor="marketing-consent">
-                        Wyrażam zgodę na otrzymywanie od Pracowni Życia drogą
-                        e-mail treści marketingowych zgodnie z{" "}
+                        {MARKETING_CONSENT_INTRO}{" "}
                         <a
-                          href="https://pracowniazycia.pl/polityka-prywatnosci-bezpieczenstwa-i-cookies/"
+                          href={PRIVACY_POLICY_URL}
                           target="_blank"
                           rel="noreferrer"
                         >
                           Polityką prywatności
                         </a>
-                        . Zgodę mogę wycofać w każdej chwili.
+                        . {MARKETING_CONSENT_WITHDRAWAL}
                       </label>
                     </div>
+
+                    {submitError && (
+                      <p id="email-error" className={styles.formError} role="alert">
+                        {submitError}
+                      </p>
+                    )}
 
                     <button
                       type="submit"
@@ -725,6 +763,7 @@ export function SelfAssessment() {
                     type="button"
                     className={styles.backButton}
                     onClick={goBack}
+                    disabled={isSubmitting}
                   >
                     <span aria-hidden="true">←</span> Wróć do ostatniego pytania
                   </button>
