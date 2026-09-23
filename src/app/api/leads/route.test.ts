@@ -40,13 +40,19 @@ afterEach(() => {
 });
 
 describe("POST /api/leads", () => {
-  it("acknowledges a confirmed write; sends only the email and group to MailerLite", async () => {
-    upstreamFetch.mockResolvedValue(Response.json({ data: { email: "test@example.com" } }));
+  it("acknowledges a confirmed write only after assigning the subscriber to the group", async () => {
+    upstreamFetch
+      .mockResolvedValueOnce(Response.json({
+        data: { id: "987654321", email: "test@example.com" },
+      }, { status: 201 }))
+      .mockResolvedValueOnce(Response.json({
+        data: { id: groupId, name: "Test group" },
+      }, { status: 201 }));
     const response = await POST(request());
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await response.json()).toEqual({ ok: true });
-    expect(upstreamFetch).toHaveBeenCalledOnce();
+    expect(upstreamFetch).toHaveBeenCalledTimes(2);
     const [url, options] = upstreamFetch.mock.calls[0];
     expect(url).toBe("https://connect.mailerlite.com/api/subscribers");
     expect(options?.headers).toMatchObject({
@@ -55,10 +61,17 @@ describe("POST /api/leads", () => {
       "Content-Type": "application/json",
     });
     const sent = JSON.parse(options?.body as string);
-    expect(sent).toEqual({
-      email: "test@example.com",
-      groups: [groupId],
+    expect(sent).toEqual({ email: "test@example.com" });
+
+    const [assignmentUrl, assignmentOptions] = upstreamFetch.mock.calls[1];
+    expect(assignmentUrl).toBe(
+      `https://connect.mailerlite.com/api/subscribers/987654321/groups/${groupId}`,
+    );
+    expect(assignmentOptions?.method).toBe("POST");
+    expect(assignmentOptions?.headers).toMatchObject({
+      Authorization: `Bearer ${syntheticSecret}`,
     });
+    expect(assignmentOptions?.body).toBeUndefined();
   });
 
   it.each([undefined, "https://evil.example.com"])("rejects foreign/missing origin %s", async (origin) => {
@@ -110,6 +123,18 @@ describe("POST /api/leads", () => {
     const response = await POST(request());
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({ ok: false, error: "save_unavailable" });
+  });
+
+  it("does not show the result if MailerLite cannot assign the requested group", async () => {
+    upstreamFetch
+      .mockResolvedValueOnce(Response.json({
+        data: { id: "987654321", email: "test@example.com" },
+      }, { status: 201 }))
+      .mockResolvedValueOnce(Response.json({ message: "Invalid group" }, { status: 422 }));
+    const response = await POST(request());
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ ok: false, error: "save_unavailable" });
+    expect(upstreamFetch).toHaveBeenCalledTimes(2);
   });
 
   it("preserves a retryable rate-limit status", async () => {

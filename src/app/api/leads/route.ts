@@ -85,6 +85,7 @@ export async function POST(request: Request): Promise<Response> {
   const configuration = readConfiguration();
   if (!configuration) return failure("not_configured", 503);
 
+  let stage: "subscriber_upsert" | "group_assignment" = "subscriber_upsert";
   try {
     // Deliberately exclude answers, score, IP and browser telemetry.
     const { email } = parsed.lead;
@@ -100,17 +101,25 @@ export async function POST(request: Request): Promise<Response> {
         cache: "no-store",
         redirect: "error",
         signal: AbortSignal.timeout(18_000),
-        body: JSON.stringify({ email, groups: [configuration.groupId] }),
+        body: JSON.stringify({ email }),
       },
     );
-    if (response.status === 429) return failure("rate_limited", 429);
+    if (response.status === 429) {
+      console.warn("MailerLite request was rate limited", { stage });
+      return failure("rate_limited", 429);
+    }
     if (response.status !== 200 && response.status !== 201) {
+      console.warn("MailerLite request failed", { stage, status: response.status });
       return failure("save_unavailable", 502);
     }
     let result: unknown;
     try {
       result = await response.json();
     } catch {
+      console.warn("MailerLite returned an invalid response", {
+        stage,
+        status: response.status,
+      });
       return failure("save_unavailable", 502);
     }
     if (
@@ -121,15 +130,84 @@ export async function POST(request: Request): Promise<Response> {
       result.data === null ||
       typeof result.data !== "object" ||
       Array.isArray(result.data) ||
+      !("id" in result.data) ||
+      typeof result.data.id !== "string" ||
+      !/^\d{1,30}$/.test(result.data.id) ||
       !("email" in result.data) ||
       typeof result.data.email !== "string" ||
       result.data.email.toLowerCase() !== email
     ) {
+      console.warn("MailerLite returned an unexpected subscriber response", {
+        stage,
+        status: response.status,
+      });
       return failure("save_unavailable", 502);
     }
+
+    // Assign the group explicitly and only confirm the form after MailerLite
+    // confirms that the returned subscriber was added to the requested group.
+    stage = "group_assignment";
+    const subscriberId = result.data.id;
+    const groupResponse = await fetch(
+      `https://connect.mailerlite.com/api/subscribers/${encodeURIComponent(subscriberId)}/groups/${encodeURIComponent(configuration.groupId)}`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${configuration.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+        redirect: "error",
+        signal: AbortSignal.timeout(18_000),
+      },
+    );
+    if (groupResponse.status === 429) {
+      console.warn("MailerLite request was rate limited", { stage });
+      return failure("rate_limited", 429);
+    }
+    if (groupResponse.status !== 200 && groupResponse.status !== 201) {
+      console.warn("MailerLite request failed", {
+        stage,
+        status: groupResponse.status,
+      });
+      return failure("save_unavailable", 502);
+    }
+    let groupResult: unknown;
+    try {
+      groupResult = await groupResponse.json();
+    } catch {
+      console.warn("MailerLite returned an invalid response", {
+        stage,
+        status: groupResponse.status,
+      });
+      return failure("save_unavailable", 502);
+    }
+    if (
+      groupResult === null ||
+      typeof groupResult !== "object" ||
+      Array.isArray(groupResult) ||
+      !("data" in groupResult) ||
+      groupResult.data === null ||
+      typeof groupResult.data !== "object" ||
+      Array.isArray(groupResult.data) ||
+      !("id" in groupResult.data) ||
+      String(groupResult.data.id) !== configuration.groupId
+    ) {
+      console.warn("MailerLite returned an unexpected group response", {
+        stage,
+        status: groupResponse.status,
+      });
+      return failure("save_unavailable", 502);
+    }
+
     return Response.json({ ok: true }, { headers: RESPONSE_HEADERS });
-  } catch {
+  } catch (error) {
     // Never log upstream responses, secrets, email addresses or request bodies.
+    console.error("MailerLite request threw an error", {
+      stage,
+      errorType: error instanceof Error ? error.name : "UnknownError",
+    });
     return failure("save_unavailable", 502);
   }
 }
