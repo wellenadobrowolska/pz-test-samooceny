@@ -3,7 +3,7 @@ import {
   normalizeEmail,
   type LeadErrorCode,
 } from "../../domain/leads/contract";
-import { TEST_VERSION } from "../../domain/self-esteem-v1/questions";
+import { TEST_VERSION } from "../../domain/self-esteem-v2/questions";
 
 const ERROR_MESSAGES: Record<LeadErrorCode, string> = {
   invalid_request:

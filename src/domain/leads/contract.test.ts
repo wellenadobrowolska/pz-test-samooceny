@@ -4,7 +4,7 @@ import {
   MARKETING_CONSENT_VERSION,
   parseLeadRequest,
 } from "./contract";
-import { TEST_VERSION } from "../self-esteem-v1/questions";
+import { TEST_VERSION } from "../self-esteem-v2/questions";
 
 const input = {
   email: "test@example.com",

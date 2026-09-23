@@ -1,5 +1,9 @@
 # Tymczasowy zapis adresów do prywatnego Arkusza Google
 
+> **Integracja archiwalna.** Aktualny endpoint `POST /api/leads` korzysta z
+> MailerLite i nie wywołuje już tego skryptu. Zachowano poniższe instrukcje dla
+> wcześniejszych wdrożeń i danych historycznych.
+
 Po konfiguracji uczestniczka podaje e-mail i zaznacza zgodę. Serwer testu zapisuje zgłoszenie w Twoim prywatnym arkuszu, a po potwierdzeniu zapisu pokazuje wynik na stronie. Nie trzeba podłączać Google Drive do rozmowy ani przekazywać nikomu hasła do Google.
 
 Ta integracja **nie wysyła wyniku ani ćwiczenia uczestniczce** i nie dodaje jej jeszcze do MailerLite. Zapisy zostają w arkuszu do późniejszego eksportu. Na stronie nie należy w tym okresie obiecywać dostarczenia wyniku e-mailem.

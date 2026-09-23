@@ -11,12 +11,12 @@ import {
   ANSWER_OPTIONS,
   QUESTIONS,
   TEST_VERSION,
-} from "@/domain/self-esteem-v1/questions";
+} from "@/domain/self-esteem-v2/questions";
 import {
   isAnswerValue,
   scoreAnswers,
   scoreProgress,
-} from "@/domain/self-esteem-v1/score";
+} from "@/domain/self-esteem-v2/score";
 import {
   isValidEmail,
   MARKETING_CONSENT_INTRO,
@@ -24,7 +24,7 @@ import {
   normalizeEmail,
   PRIVACY_POLICY_URL,
 } from "@/domain/leads/contract";
-import type { AnswerValue } from "@/domain/self-esteem-v1/types";
+import type { AnswerValue } from "@/domain/self-esteem-v2/types";
 import { trackEvent } from "@/lib/analytics";
 import {
   createSubmissionId,

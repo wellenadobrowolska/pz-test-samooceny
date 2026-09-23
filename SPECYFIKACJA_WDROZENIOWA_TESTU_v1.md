@@ -5,22 +5,18 @@
 **Produkt docelowy:** publiczny test samooceny Pracowni Życia prowadzący do 30-dniowego programu Wellena  
 **Zatwierdzony adres wdrożenia:** `test-samooceny.pracowniazycia.pl`
 
-> **Aktualizacja przejściowa — 2026-09-17:** Do podłączenia systemu mailingowego
-> obowiązuje wariant opisany w `integrations/google-sheets/README.md`: prywatny
-> Arkusz Google przechowuje e-mail, datę i potwierdzenie zgody, ale nie wynik ani
-> odpowiedzi. Serwerowy `POST /api/leads` potwierdza zapis przed pokazaniem
-> wyniku. Wynik i ćwiczenie są tylko na ekranie; nie obiecujemy kopii e-mailowej.
-> Opcjonalne powiadomienie właścicielki nie jest wiadomością do uczestniczki.
-> Przed wdrożeniem wymagane są konfiguracja Google/Vercela i test odbiorowy.
-> Poniższe wymagania dotyczące wysyłki i MailerLite opisują wariant docelowy,
-> nie aktualnie działającą integrację.
+> **Aktualizacja — 2026-09-23:** Aktualny kod `POST /api/leads` dodaje e-mail
+> do skonfigurowanej grupy MailerLite. Wymaga `MAILERLITE_API_KEY` i
+> `MAILERLITE_GROUP_ID` w Vercel oraz nowego wdrożenia po ich zmianie. Wynik i
+> ćwiczenie są tylko na ekranie; nie są wysyłane e-mailem. Wcześniejsza
+> integracja arkusza pozostaje opisana w `integrations/google-sheets/README.md`.
 
 ## 1. Cel
 
 Celem jest uruchomienie lekkiej, dostępnej aplikacji internetowej, która:
 
 1. pozwala wypełnić 10-pytaniowy test w 2–3 minuty;
-2. oblicza wynik zgodnie z zamrożoną mechaniką v1;
+2. oblicza wynik zgodnie z mechaniką `self-esteem-v2`;
 3. po podaniu adresu e-mail pokazuje wynik na tej samej stronie i wysyła jego kopię e-mailem;
 4. daje krótką wartość edukacyjną i ćwiczenie do wielokrotnego użycia;
 5. naturalnie prowadzi do prezentacji 30-dniowego programu Wellena;
@@ -31,7 +27,7 @@ Celem jest uruchomienie lekkiej, dostępnej aplikacji internetowej, która:
 W razie rozbieżności obowiązuje następująca kolejność:
 
 1. niniejszy dokument — zatwierdzone decyzje dotyczące przebiegu, prezentacji wyniku i architektury;
-2. `TEST_SAMOOCENY_MECHANIKA_v1.md` — treść pytań, kolejność, odpowiedzi, punktacja i testy mechaniki;
+2. `TEST_SAMOOCENY_MECHANIKA_v2.md` — aktualna treść pytań, kolejność, odpowiedzi, punktacja i testy mechaniki;
 3. `TONE_OF_VOICE_WELLENA_PZ_v2_1.md` — język komunikacji;
 4. `BRAND_GUIDELINES_WELLENA_PZ_v11.md` — kolory, typografia i charakter wizualny;
 5. `TEST SAMOOCENY PŻ.txt` i `WYNIK TESTU.txt` — materiały robocze do redakcji zgodnie z dokumentami nadrzędnymi.
@@ -48,7 +44,7 @@ W razie rozbieżności obowiązuje następująca kolejność:
 - Pełny wynik pojawia się po podaniu adresu e-mail.
 - Już przed rozpoczęciem testu należy jasno powiedzieć, że pełny wynik będzie dostępny po podaniu adresu e-mail.
 - Test nie jest diagnozą ani narzędziem klinicznym.
-- Pytania, ich kolejność i mechanika punktacji są wersjonowane i zamrożone jako `self-esteem-v1`.
+- Pytania, ich kolejność i mechanika punktacji są wersjonowane jako `self-esteem-v2`; zmiany względem v1 są opisane w specyfikacji mechaniki v2.
 
 ## 4. Zakres MVP
 
@@ -164,7 +160,7 @@ Ponieważ matematyczny zakres testu wynosi 10–40, długość łuku może być 
 
 ## 7. Pytania i odpowiedzi
 
-Treść wszystkich 10 pytań należy skopiować dokładnie z `TEST_SAMOOCENY_MECHANIKA_v1.md`. Nie wolno jej przepisywać, skracać, poprawiać stylistycznie ani losować kolejności.
+Treść wszystkich 10 pytań należy skopiować dokładnie z `TEST_SAMOOCENY_MECHANIKA_v2.md`. Nie wolno jej przepisywać, skracać, poprawiać stylistycznie ani losować kolejności.
 
 Odpowiedzi, zawsze w tej samej kolejności:
 
@@ -198,7 +194,7 @@ Wynik jest sumą punktów i mieści się w zakresie `10–40`.
 ### Wymagania techniczne
 
 - Punktacja jest czystą, deterministyczną funkcją.
-- Moduł zawiera identyfikator wersji `self-esteem-v1`.
+- Moduł zawiera identyfikator wersji `self-esteem-v2`.
 - Nie używa AI, losowości, wag, średnich ani zaokrągleń.
 - Nie przyjmuje brakujących odpowiedzi ani wartości spoza `1–4`.
 - Ten sam moduł ma być używany w publicznym teście i w przyszłym pomiarze wewnątrz Welleny.
@@ -316,7 +312,7 @@ src/
     page.tsx
     api/result/route.ts
   components/self-assessment/
-  domain/self-esteem-v1/
+  domain/self-esteem-v2/
     questions.ts
     score.ts
     score.test.ts

@@ -1,4 +1,4 @@
-import { TEST_VERSION } from "../self-esteem-v1/questions";
+import { TEST_VERSION } from "../self-esteem-v2/questions";
 
 export const MARKETING_CONSENT_VERSION = "marketing-email-v1-2026-09-15";
 export const PRIVACY_POLICY_URL =

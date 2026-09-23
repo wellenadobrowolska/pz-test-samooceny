@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { QUESTIONS, TEST_VERSION } from "../../domain/self-esteem-v1/questions";
-import type { AnswerValue } from "../../domain/self-esteem-v1/types";
+import { QUESTIONS, TEST_VERSION } from "../../domain/self-esteem-v2/questions";
+import type { AnswerValue } from "../../domain/self-esteem-v2/types";
 import {
   clearProgress,
   persistProgress,

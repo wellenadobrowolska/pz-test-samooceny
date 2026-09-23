@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createSubmissionId, LeadSubmissionError, submitLead } from "./submit-lead";
 import { MARKETING_CONSENT_VERSION } from "../../domain/leads/contract";
-import { TEST_VERSION } from "../../domain/self-esteem-v1/questions";
+import { TEST_VERSION } from "../../domain/self-esteem-v2/questions";
 
 const id = "11111111-1111-4111-8111-111111111111";
 const input = { email: " TEST@Example.com ", submissionId: id, website: "" };

@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MARKETING_CONSENT_VERSION } from "../../../domain/leads/contract";
-import { TEST_VERSION } from "../../../domain/self-esteem-v1/questions";
+import { TEST_VERSION } from "../../../domain/self-esteem-v2/questions";
 import { POST } from "./route";
 
 const syntheticSecret = "test-secret-not-real-11111111111111111111";
-const webAppUrl = "https://script.google.com/macros/s/test-deployment-id/exec";
+const groupId = "123456789012345678";
 const input = {
   email: " TEST@Example.com ",
   marketingConsent: true,
@@ -28,8 +28,8 @@ function request(body: unknown = input, headers: Record<string, string> = {}) {
 }
 
 beforeEach(() => {
-  vi.stubEnv("GOOGLE_SHEETS_WEB_APP_URL", webAppUrl);
-  vi.stubEnv("GOOGLE_SHEETS_SHARED_SECRET", syntheticSecret);
+  vi.stubEnv("MAILERLITE_API_KEY", syntheticSecret);
+  vi.stubEnv("MAILERLITE_GROUP_ID", groupId);
   vi.stubGlobal("fetch", upstreamFetch);
   upstreamFetch.mockReset();
 });
@@ -40,26 +40,25 @@ afterEach(() => {
 });
 
 describe("POST /api/leads", () => {
-  it("acknowledges a confirmed write; sends only the agreed fields to Google", async () => {
-    upstreamFetch.mockResolvedValue(Response.json({ ok: true }));
+  it("acknowledges a confirmed write; sends only the email and group to MailerLite", async () => {
+    upstreamFetch.mockResolvedValue(Response.json({ data: { email: "test@example.com" } }));
     const response = await POST(request());
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await response.json()).toEqual({ ok: true });
     expect(upstreamFetch).toHaveBeenCalledOnce();
     const [url, options] = upstreamFetch.mock.calls[0];
-    expect(url).toBe(webAppUrl);
+    expect(url).toBe("https://connect.mailerlite.com/api/subscribers");
+    expect(options?.headers).toMatchObject({
+      Accept: "application/json",
+      Authorization: `Bearer ${syntheticSecret}`,
+      "Content-Type": "application/json",
+    });
     const sent = JSON.parse(options?.body as string);
     expect(sent).toEqual({
       email: "test@example.com",
-      marketingConsent: true,
-      consentVersion: MARKETING_CONSENT_VERSION,
-      testVersion: TEST_VERSION,
-      submissionId: input.submissionId,
-      secret: syntheticSecret,
-      submittedAt: expect.any(String),
+      groups: [groupId],
     });
-    expect(Number.isFinite(Date.parse(sent.submittedAt))).toBe(true);
   });
 
   it.each([undefined, "https://evil.example.com"])("rejects foreign/missing origin %s", async (origin) => {
@@ -90,9 +89,9 @@ describe("POST /api/leads", () => {
     expect(upstreamFetch).not.toHaveBeenCalled();
   });
 
-  it.each(["", "http://script.google.com/macros/s/id/exec", "https://evil.example.com/exec", "https://script.google.com/macros/s/id/dev", "https://script.google.com/macros/s/id/exec?secret=unsafe"])(
-    "fails closed on missing/unsafe configuration %s", async (url) => {
-      vi.stubEnv("GOOGLE_SHEETS_WEB_APP_URL", url);
+  it.each(["", "group-id", "123/456", "1".repeat(31)])(
+    "fails closed on missing/unsafe group configuration %s", async (configuredGroupId) => {
+      vi.stubEnv("MAILERLITE_GROUP_ID", configuredGroupId);
       const response = await POST(request());
       expect(response.status).toBe(503);
       expect(await response.json()).toEqual({ ok: false, error: "not_configured" });
@@ -100,23 +99,21 @@ describe("POST /api/leads", () => {
     },
   );
 
-  it("fails closed for a short secret", async () => {
-    vi.stubEnv("GOOGLE_SHEETS_SHARED_SECRET", "short");
+  it("fails closed for an empty API key", async () => {
+    vi.stubEnv("MAILERLITE_API_KEY", "");
     expect((await POST(request())).status).toBe(503);
     expect(upstreamFetch).not.toHaveBeenCalled();
   });
 
-  it.each([
-    { ok: false, error: "unauthorized" }, {}, null, { ok: "true" },
-  ])("does not mistake HTTP 200 for a successful write %j", async (body) => {
-    upstreamFetch.mockResolvedValue(Response.json(body));
+  it("does not acknowledge an upstream validation error", async () => {
+    upstreamFetch.mockResolvedValue(Response.json({ message: "Invalid group" }, { status: 422 }));
     const response = await POST(request());
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({ ok: false, error: "save_unavailable" });
   });
 
   it("preserves a retryable rate-limit status", async () => {
-    upstreamFetch.mockResolvedValue(Response.json({ ok: false, error: "rate_limited" }));
+    upstreamFetch.mockResolvedValue(Response.json({ message: "Too Many Attempts." }, { status: 429 }));
     const response = await POST(request());
     expect(response.status).toBe(429);
     expect(await response.json()).toEqual({ ok: false, error: "rate_limited" });
@@ -129,7 +126,7 @@ describe("POST /api/leads", () => {
     expect(await response.text()).not.toContain("test@example.com");
   });
 
-  it("handles upstream server errors and non-JSON authorization pages", async () => {
+  it("handles upstream server errors and authorization pages", async () => {
     upstreamFetch.mockResolvedValue(new Response("server-error", { status: 500 }));
     expect((await POST(request())).status).toBe(502);
     upstreamFetch.mockResolvedValue(new Response("<html>Login required</html>"));

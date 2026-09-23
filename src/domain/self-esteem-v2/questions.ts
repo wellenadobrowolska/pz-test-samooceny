@@ -1,6 +1,6 @@
 import type { AnswerValue, Question } from "./types";
 
-export const TEST_VERSION = "self-esteem-v1";
+export const TEST_VERSION = "self-esteem-v2";
 
 export const QUESTIONS: readonly Question[] = [
   {
@@ -10,7 +10,7 @@ export const QUESTIONS: readonly Question[] = [
   },
   {
     id: 2,
-    text: "Miewam chwile, w których wydaję się sobie zupełnie beznadziejna (beznadziejny).",
+    text: "Każde niepowodzenie odtwarzam w głowie wiele razy.",
     direction: "reverse",
   },
   {
@@ -30,7 +30,7 @@ export const QUESTIONS: readonly Question[] = [
   },
   {
     id: 6,
-    text: "Bywają dni, kiedy mam poczucie, że nie ma ze mnie żadnego pożytku.",
+    text: "Kiedy myślę o swoich marzeniach i celach, wątpię, czy dam radę je zrealizować.",
     direction: "reverse",
   },
   {

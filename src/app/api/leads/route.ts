@@ -22,28 +22,20 @@ function isSameOrigin(request: Request): boolean {
   }
 }
 
-function readConfiguration(): { url: string; secret: string } | null {
-  const url = process.env.GOOGLE_SHEETS_WEB_APP_URL;
-  const secret = process.env.GOOGLE_SHEETS_SHARED_SECRET;
-  if (!url || !secret || secret.length < 32 || secret.length > 256) return null;
-  try {
-    const parsed = new URL(url);
-    if (
-      parsed.protocol !== "https:" ||
-      parsed.hostname !== "script.google.com" ||
-      parsed.port ||
-      parsed.username ||
-      parsed.password ||
-      parsed.search ||
-      parsed.hash ||
-      !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(parsed.pathname)
-    ) {
-      return null;
-    }
-    return { url: parsed.href, secret };
-  } catch {
+function readConfiguration(): { apiKey: string; groupId: string } | null {
+  const apiKey = process.env.MAILERLITE_API_KEY;
+  const groupId = process.env.MAILERLITE_GROUP_ID;
+  if (
+    !apiKey ||
+    apiKey.length > 4096 ||
+    apiKey !== apiKey.trim() ||
+    /[\r\n]/.test(apiKey) ||
+    !groupId ||
+    !/^\d{1,30}$/.test(groupId)
+  ) {
     return null;
   }
+  return { apiKey, groupId };
 }
 
 async function readBody(request: Request): Promise<unknown> {
@@ -95,33 +87,44 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     // Deliberately exclude answers, score, IP and browser telemetry.
-    const { email, marketingConsent, consentVersion, testVersion, submissionId } =
-      parsed.lead;
-    const response = await fetch(configuration.url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store",
-      redirect: "follow",
-      signal: AbortSignal.timeout(18_000),
-      body: JSON.stringify({
-        email,
-        marketingConsent,
-        consentVersion,
-        testVersion,
-        submissionId,
-        secret: configuration.secret,
-        submittedAt: new Date().toISOString(),
-      }),
-    });
-    if (!response.ok) return failure("save_unavailable", 502);
-    const result: unknown = await response.json();
-    const data =
-      result !== null && typeof result === "object"
-        ? (result as Record<string, unknown>)
-        : {};
-    // Apps Script can return HTTP 200 for a rejected or failed write.
-    if (data.ok !== true) {
-      if (data.error === "rate_limited") return failure("rate_limited", 429);
+    const { email } = parsed.lead;
+    const response = await fetch(
+      "https://connect.mailerlite.com/api/subscribers",
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${configuration.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+        redirect: "error",
+        signal: AbortSignal.timeout(18_000),
+        body: JSON.stringify({ email, groups: [configuration.groupId] }),
+      },
+    );
+    if (response.status === 429) return failure("rate_limited", 429);
+    if (response.status !== 200 && response.status !== 201) {
+      return failure("save_unavailable", 502);
+    }
+    let result: unknown;
+    try {
+      result = await response.json();
+    } catch {
+      return failure("save_unavailable", 502);
+    }
+    if (
+      result === null ||
+      typeof result !== "object" ||
+      Array.isArray(result) ||
+      !("data" in result) ||
+      result.data === null ||
+      typeof result.data !== "object" ||
+      Array.isArray(result.data) ||
+      !("email" in result.data) ||
+      typeof result.data.email !== "string" ||
+      result.data.email.toLowerCase() !== email
+    ) {
       return failure("save_unavailable", 502);
     }
     return Response.json({ ok: true }, { headers: RESPONSE_HEADERS });

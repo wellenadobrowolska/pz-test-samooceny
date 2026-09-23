@@ -1,6 +1,6 @@
-import { QUESTIONS, TEST_VERSION } from "../../domain/self-esteem-v1/questions";
-import { isAnswerValue } from "../../domain/self-esteem-v1/score";
-import type { AnswerValue } from "../../domain/self-esteem-v1/types";
+import { QUESTIONS, TEST_VERSION } from "../../domain/self-esteem-v2/questions";
+import { isAnswerValue } from "../../domain/self-esteem-v2/score";
+import type { AnswerValue } from "../../domain/self-esteem-v2/types";
 
 const STORAGE_KEY = "pz-self-assessment-v1";
 const RESULT_STORAGE_KEY = "pz-self-assessment-result-v1";

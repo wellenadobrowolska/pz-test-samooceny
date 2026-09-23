@@ -12,21 +12,17 @@ Aplikacja zawiera:
 - treść edukacyjną, ćwiczenie i przejście do 30-dniowego programu Wellena;
 - testy mechaniki punktacji.
 
-Przygotowano tymczasowy zapis kontaktów w prywatnym Arkuszu Google przez
-serwerowy `POST /api/leads` i Google Apps Script. Ekran wyniku jest odsłaniany
-dopiero po potwierdzonym zapisie; nie wysyłamy jeszcze wyniku uczestniczce
-e-mailem. Opcjonalne powiadomienia dla właścicielki nie są kopią wyniku.
+Formularz przekazuje e-mail po zgodzie do serwerowego `POST /api/leads`, który
+dodaje go do skonfigurowanej grupy MailerLite. Wynik pojawia się po potwierdzeniu
+zapisu przez MailerLite. Test nie wysyła wyniku e-mailem ani nie przekazuje
+odpowiedzi, punktacji, adresu IP czy danych analitycznych do MailerLite.
 
-**Integracja nie jest aktywna bez konfiguracji Google i Vercela.** Nie wdrażaj
-nowego formularza publicznie przed wykonaniem instrukcji i testu odbiorowego.
-Brak konfiguracji lub błąd zapisu daje czytelny komunikat zamiast pozornego
-sukcesu. Zobacz [instrukcję uruchomienia](integrations/google-sheets/README.md).
-
-Zapis obejmuje e-mail, datę, zgodę i jej wersję. Odpowiedzi, wynik, IP i dane
-analityczne nie trafiają do arkusza. Sekret i adres skryptu są wyłącznie w
-serwerowych zmiennych środowiskowych. Arkusz nie może być publicznie udostępniony.
-
-Integracja z docelowym systemem mailingowym i analityka pozostają do wdrożenia.
+**Integracja wymaga ustawienia `MAILERLITE_API_KEY` i `MAILERLITE_GROUP_ID` w
+Vercel.** Bez tych zmiennych formularz pokaże komunikat o niedostępnym zapisie.
+Instrukcja znajduje się w
+[`integrations/mailerlite/README.md`](integrations/mailerlite/README.md).
+Poprzednie instrukcje integracji z Arkuszem Google pozostają w repozytorium do
+obsługi wcześniejszych zapisów; aktualny endpoint nie zapisuje już do arkusza.
 
 ## Uruchomienie lokalne
 
@@ -59,11 +55,13 @@ node --test integrations/google-sheets/Code.test.mjs
 
 ## Dokumentacja
 
-- [`integrations/google-sheets/README.md`](integrations/google-sheets/README.md) — konfiguracja tymczasowego zapisu i test odbiorowy;
+- [`integrations/mailerlite/README.md`](integrations/mailerlite/README.md) — konfiguracja MailerLite i test odbiorowy;
+- [`integrations/google-sheets/README.md`](integrations/google-sheets/README.md) — wcześniejsza integracja arkusza, nieużywana przez aktualny endpoint;
 - [`integrations/google-sheets/Code.gs`](integrations/google-sheets/Code.gs) — gotowy skrypt do Google Apps Script;
-- [`.env.example`](.env.example) — nazwy dwóch serwerowych ustawień Vercela (bez sekretów);
+- [`.env.example`](.env.example) — nazwy serwerowych ustawień Vercela (bez sekretów);
 - [`SPECYFIKACJA_WDROZENIOWA_TESTU_v1.md`](./SPECYFIKACJA_WDROZENIOWA_TESTU_v1.md) — przebieg, architektura i kryteria odbioru;
-- [`TEST_SAMOOCENY_MECHANIKA_v1.md`](./TEST_SAMOOCENY_MECHANIKA_v1.md) — pytania i źródło prawdy dla punktacji;
+- [`TEST_SAMOOCENY_MECHANIKA_v2.md`](./TEST_SAMOOCENY_MECHANIKA_v2.md) — aktualne pytania i źródło prawdy dla punktacji;
+- [`TEST_SAMOOCENY_MECHANIKA_v1.md`](./TEST_SAMOOCENY_MECHANIKA_v1.md) — archiwalna, wcześniejsza wersja pytań;
 - [`TEST SAMOOCENY PŻ.txt`](./TEST%20SAMOOCENY%20PŻ.txt) — robocza treść landingu;
 - [`TEKST_EKRAN_STARTOWY_v1.md`](./TEKST_EKRAN_STARTOWY_v1.md) — rekomendowany tekst pierwszego ekranu i pytania 1;
 - [`WYNIK TESTU.txt`](./WYNIK%20TESTU.txt) — robocza treść wyniku;
