@@ -47,6 +47,15 @@ type QueueState = {
 
 const states = new WeakMap<AnalyticsTarget, QueueState>();
 
+function withoutQuery(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.origin + parsed.pathname;
+  } catch {
+    return url.split(/[?#]/)[0];
+  }
+}
+
 export function toDataLayerEntry(input: AnalyticsEvent): DataLayerEntry {
   switch (input.event) {
     case "self_assessment_question_view":
@@ -60,7 +69,8 @@ export function toDataLayerEntry(input: AnalyticsEvent): DataLayerEntry {
         event: input.event,
         source_page: "test-samooceny",
         cta_location: input.ctaLocation,
-        link_url: input.linkUrl,
+        // Bez zapytania: link do Welleny niesie `lead=…`, który nie może trafić do analityki.
+        link_url: withoutQuery(input.linkUrl),
         link_text: input.linkText.replace(/\s+/g, " ").trim().slice(0, 80),
       };
     default:

@@ -46,6 +46,19 @@ describe("toDataLayerEntry", () => {
   });
 });
 
+describe("toDataLayerEntry privacy", () => {
+  it("strips the lead id and UTM from the Wellena link before it reaches analytics", () => {
+    const entry = toDataLayerEntry({
+      event: "wellena_cta_click",
+      ctaLocation: "wynik-program",
+      linkUrl: "https://wellena.pl/?utm_source=test&utm_content=H1-krok&lead=11111111-1111-4111-8111-111111111111",
+      linkText: "Zrób kolejny krok",
+    });
+    expect(entry.link_url).toBe("https://wellena.pl/");
+    expect(JSON.stringify(entry)).not.toContain("lead=");
+  });
+});
+
 describe("trackEvent", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());

@@ -238,6 +238,20 @@ describe("persisting only assessment state", () => {
     expect(local.setItem).not.toHaveBeenCalled();
   });
 
+  it("keeps the lead id with the result and restores it", () => {
+    const leadId = "11111111-1111-4111-8111-111111111111";
+    persistResult(25, leadId);
+    expect(JSON.parse(session.values.get(RESULT_KEY)!)).toEqual({ version: TEST_VERSION, score: 25, leadId });
+    expect(restoreAssessment()).toEqual({ kind: "result", score: 25, leadId });
+  });
+
+  it.each(["not-a-uuid", "", "11111111-1111-1111-1111-111111111111"])("ignores an invalid lead id %s", (leadId) => {
+    persistResult(25, leadId);
+    expect(JSON.parse(session.values.get(RESULT_KEY)!)).toEqual({ version: TEST_VERSION, score: 25 });
+    session.values.set(RESULT_KEY, JSON.stringify({ version: TEST_VERSION, score: 25, leadId }));
+    expect(restoreAssessment()).toEqual({ kind: "result", score: 25 });
+  });
+
   it.each([9, 41, 20.5, NaN, Infinity])("does not persist invalid score %s", (score) => {
     persistResult(score);
     expect(session.setItem).not.toHaveBeenCalled();

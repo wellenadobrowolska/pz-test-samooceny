@@ -13,8 +13,16 @@ type Progress = {
 };
 
 type RestoredAssessment =
-  | { kind: "result"; score: number }
+  | { kind: "result"; score: number; leadId?: string }
   | ({ kind: "progress" } & Progress);
+
+// Losowy identyfikator leada (UUID v4) — nie identyfikuje osoby sam z siebie.
+const LEAD_ID_PATTERN =
+  /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+
+function isLeadId(value: unknown): value is string {
+  return typeof value === "string" && LEAD_ID_PATTERN.test(value);
+}
 
 function getStorage(name: "localStorage" | "sessionStorage"): Storage | null {
   try {
@@ -91,7 +99,9 @@ export function restoreAssessment(): RestoredAssessment | null {
       const result: unknown = JSON.parse(rawResult);
       if (isRecord(result) && result.version === TEST_VERSION && isScore(result.score)) {
         clearProgress();
-        return { kind: "result", score: result.score };
+        return isLeadId(result.leadId)
+          ? { kind: "result", score: result.score, leadId: result.leadId }
+          : { kind: "result", score: result.score };
       }
     } catch {
       // Invalid JSON is treated in the same way as an invalid stored shape.
@@ -136,13 +146,19 @@ export function persistProgress(progress: Progress): void {
   writeItem(getStorage("localStorage"), STORAGE_KEY, JSON.stringify(stored));
 }
 
-export function persistResult(score: number): void {
+export function persistResult(score: number, leadId?: string): void {
   if (!isScore(score)) return;
 
+  // Identyfikator leada jest potrzebny na ekranie wyniku (link do Welleny);
+  // e-mail nadal nie trafia do pamięci przeglądarki.
   writeItem(
     getStorage("sessionStorage"),
     RESULT_STORAGE_KEY,
-    JSON.stringify({ version: TEST_VERSION, score }),
+    JSON.stringify(
+      isLeadId(leadId)
+        ? { version: TEST_VERSION, score, leadId }
+        : { version: TEST_VERSION, score },
+    ),
   );
 }
 

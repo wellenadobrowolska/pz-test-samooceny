@@ -15,6 +15,8 @@ const input = {
 };
 const upstreamFetch = vi.fn<typeof fetch>();
 
+const options = (value: unknown) => JSON.stringify(value);
+
 function request(body: unknown = input, headers: Record<string, string> = {}) {
   return new Request("https://test.example.com/api/leads", {
     method: "POST",
@@ -61,7 +63,13 @@ describe("POST /api/leads", () => {
       "Content-Type": "application/json",
     });
     const sent = JSON.parse(options?.body as string);
-    expect(sent).toEqual({ email: "test@example.com" });
+    expect(sent).toEqual({
+      email: "test@example.com",
+      fields: {
+        pz_lead_id: input.submissionId,
+        pz_lead_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+      },
+    });
 
     const [assignmentUrl, assignmentOptions] = upstreamFetch.mock.calls[1];
     expect(assignmentUrl).toBe(
@@ -72,6 +80,44 @@ describe("POST /api/leads", () => {
       Authorization: `Bearer ${syntheticSecret}`,
     });
     expect(assignmentOptions?.body).toBeUndefined();
+  });
+
+  it("forwards only allow-listed utm_source and utm_content as MailerLite fields", async () => {
+    upstreamFetch
+      .mockResolvedValueOnce(Response.json({
+        data: { id: "987654321", email: "test@example.com" },
+      }, { status: 201 }))
+      .mockResolvedValueOnce(Response.json({
+        data: { id: groupId, name: "Test group" },
+      }, { status: 201 }));
+    const response = await POST(request({
+      ...input,
+      attribution: { source: "meta", content: "H1-krok", medium: "cpc", email: "x@y.pl" },
+    }));
+    expect(response.status).toBe(200);
+    const sent = JSON.parse(upstreamFetch.mock.calls[0][1]?.body as string);
+    expect(sent.fields).toMatchObject({ pz_utm_source: "meta", pz_utm_content: "H1-krok" });
+    expect(Object.keys(sent.fields).sort()).toEqual(
+      ["pz_lead_at", "pz_lead_id", "pz_utm_content", "pz_utm_source"],
+    );
+    expect(options(sent)).not.toContain("x@y.pl");
+  });
+
+  it("drops attribution values outside the allow-list instead of failing", async () => {
+    upstreamFetch
+      .mockResolvedValueOnce(Response.json({
+        data: { id: "987654321", email: "test@example.com" },
+      }, { status: 201 }))
+      .mockResolvedValueOnce(Response.json({
+        data: { id: groupId, name: "Test group" },
+      }, { status: 201 }));
+    const response = await POST(request({
+      ...input,
+      attribution: { source: "meta<script>", content: "a b" },
+    }));
+    expect(response.status).toBe(200);
+    const sent = JSON.parse(upstreamFetch.mock.calls[0][1]?.body as string);
+    expect(Object.keys(sent.fields).sort()).toEqual(["pz_lead_at", "pz_lead_id"]);
   });
 
   it.each([undefined, "https://evil.example.com"])("rejects foreign/missing origin %s", async (origin) => {

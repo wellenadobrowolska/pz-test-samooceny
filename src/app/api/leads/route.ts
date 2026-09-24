@@ -88,7 +88,15 @@ export async function POST(request: Request): Promise<Response> {
   let stage: "subscriber_upsert" | "group_assignment" = "subscriber_upsert";
   try {
     // Deliberately exclude answers, score, IP and browser telemetry.
-    const { email } = parsed.lead;
+    // Pola pz_* pozwalają połączyć lead z zakupem w Wellenie (pz_lead_id trafia
+    // do linku „lead=…”) i policzyć koszt leada per reklama (pz_utm_content).
+    const { email, submissionId, attribution } = parsed.lead;
+    const fields: Record<string, string> = {
+      pz_lead_id: submissionId,
+      pz_lead_at: new Date().toISOString(),
+    };
+    if (attribution.source) fields.pz_utm_source = attribution.source;
+    if (attribution.content) fields.pz_utm_content = attribution.content;
     const response = await fetch(
       "https://connect.mailerlite.com/api/subscribers",
       {
@@ -101,7 +109,7 @@ export async function POST(request: Request): Promise<Response> {
         cache: "no-store",
         redirect: "error",
         signal: AbortSignal.timeout(18_000),
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, fields }),
       },
     );
     if (response.status === 429) {

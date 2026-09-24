@@ -27,6 +27,12 @@ import {
 import type { AnswerValue } from "@/domain/self-esteem-v2/types";
 import { trackEvent } from "@/lib/analytics";
 import {
+  type Attribution,
+  captureAttribution,
+  readAttribution,
+  wellenaUrl,
+} from "@/lib/attribution";
+import {
   createSubmissionId,
   LeadSubmissionError,
   submitLead,
@@ -105,12 +111,21 @@ function trackWellenaClick(
   trackEvent({
     event: "wellena_cta_click",
     ctaLocation,
-    linkUrl: link.href,
+    // Bez zapytania: w linku jest `lead=…`, który nie może trafić do analityki.
+    linkUrl: link.origin + link.pathname,
     linkText: link.innerText || link.getAttribute("aria-label") || "",
   });
 }
 
-function ResultScreen({ score }: { score: number }) {
+function ResultScreen({
+  score,
+  leadId,
+  attribution,
+}: {
+  score: number;
+  leadId: string | null;
+  attribution: Attribution | null;
+}) {
   return (
     <main className={styles.resultMain}>
       <section className={styles.resultHero} aria-labelledby="result-title">
@@ -184,7 +199,7 @@ function ResultScreen({ score }: { score: number }) {
         </div>
         <a
           className={[styles.primaryButton, styles.resultBridgeCta].join(" ")}
-          href="https://wellena.pl"
+          href={wellenaUrl({ medium: "result", ctaLocation: "wynik-pytanie", leadId, attribution })}
           onClick={(event) => trackWellenaClick(event, "wynik-pytanie")}
         >
           Zobacz, jak działa Wellena
@@ -339,7 +354,7 @@ function ResultScreen({ score }: { score: number }) {
                 className={[styles.primaryButton, styles.wellenaOutlineCta].join(
                   " ",
                 )}
-                href="https://wellena.pl"
+                href={wellenaUrl({ medium: "result", ctaLocation: "wynik-wellena", leadId, attribution })}
                 onClick={(event) => trackWellenaClick(event, "wynik-wellena")}
               >
                 Zobacz, jak działa Wellena
@@ -366,7 +381,7 @@ function ResultScreen({ score }: { score: number }) {
             </p>
             <a
               className={[styles.primaryButton, styles.wellenaCta].join(" ")}
-              href="https://wellena.pl"
+              href={wellenaUrl({ medium: "result", ctaLocation: "wynik-program", leadId, attribution })}
               onClick={(event) => trackWellenaClick(event, "wynik-program")}
             >
               Zrób kolejny krok z Welleną
@@ -393,6 +408,10 @@ export function SelfAssessment() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [emailInvalid, setEmailInvalid] = useState(false);
   const [website, setWebsite] = useState("");
+  // Losowy identyfikator leada — trafia do linku do Welleny po zapisie e-maila.
+  const [leadId, setLeadId] = useState<string | null>(null);
+  // Zapamiętane źródło wejścia — ustawiane dopiero po hydracji (serwer go nie zna).
+  const [attribution, setAttribution] = useState<Attribution | null>(null);
   const questionRef = useRef<HTMLLegendElement>(null);
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const submittingRef = useRef(false);
@@ -413,9 +432,14 @@ export function SelfAssessment() {
     queueMicrotask(() => {
       if (cancelled) return;
 
+      // Pierwsze źródło wejścia (utm_source, utm_content) — zanim cokolwiek innego.
+      captureAttribution();
+      setAttribution(readAttribution());
+
       const stored = restoreAssessment();
       if (stored?.kind === "result") {
         setScore(stored.score);
+        setLeadId(stored.leadId ?? null);
         setStage("result");
       } else if (stored?.kind === "progress") {
         setAnswers(stored.answers);
@@ -577,7 +601,8 @@ export function SelfAssessment() {
         event: "self_assessment_email_submit",
         testVersion: TEST_VERSION,
       });
-      persistResult(calculatedScore);
+      persistResult(calculatedScore, submissionRef.current.id);
+      setLeadId(submissionRef.current.id);
       clearProgress();
       setScore(calculatedScore);
       setStage("result");
@@ -618,7 +643,7 @@ export function SelfAssessment() {
         </a>
         <a
           className={styles.headerWellenaLink}
-          href="https://wellena.pl"
+          href={wellenaUrl({ medium: "header", ctaLocation: "naglowek", attribution })}
           aria-label="Wellena — strona programu"
           onClick={(event) => trackWellenaClick(event, "naglowek")}
         >
@@ -633,7 +658,7 @@ export function SelfAssessment() {
       </header>
 
       {stage === "result" && score !== null ? (
-        <ResultScreen score={score} />
+        <ResultScreen score={score} leadId={leadId} attribution={attribution} />
       ) : (
         <main className={styles.main}>
           <section className={styles.hero} aria-labelledby="page-title">

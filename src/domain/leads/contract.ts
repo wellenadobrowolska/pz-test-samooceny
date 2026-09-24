@@ -8,6 +8,9 @@ export const MARKETING_CONSENT_INTRO =
 export const MARKETING_CONSENT_WITHDRAWAL =
   "Zgodę mogę wycofać w każdej chwili.";
 
+/** Źródło wejścia na test (utm_source, utm_content) — tylko znaki z allow-listy. */
+export type LeadAttribution = { source?: string; content?: string };
+
 export type LeadRequest = {
   email: string;
   marketingConsent: true;
@@ -15,6 +18,7 @@ export type LeadRequest = {
   testVersion: typeof TEST_VERSION;
   submissionId: string;
   website: string;
+  attribution: LeadAttribution;
 };
 
 export type LeadErrorCode =
@@ -36,7 +40,23 @@ const FIELDS = new Set([
   "testVersion",
   "submissionId",
   "website",
+  "attribution",
 ]);
+const ATTRIBUTION_VALUE = /^[A-Za-z0-9._-]{1,64}$/;
+
+/** Zostawia wyłącznie `source` i `content` z dozwolonymi znakami; reszta jest pomijana. */
+export function sanitizeAttribution(value: unknown): LeadAttribution {
+  const result: LeadAttribution = {};
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return result;
+  const input = value as Record<string, unknown>;
+  if (typeof input.source === "string" && ATTRIBUTION_VALUE.test(input.source)) {
+    result.source = input.source;
+  }
+  if (typeof input.content === "string" && ATTRIBUTION_VALUE.test(input.content)) {
+    result.content = input.content;
+  }
+  return result;
+}
 
 export function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
@@ -98,6 +118,7 @@ export function parseLeadRequest(
       testVersion: TEST_VERSION,
       submissionId: input.submissionId,
       website: input.website,
+      attribution: sanitizeAttribution(input.attribution),
     },
   };
 }

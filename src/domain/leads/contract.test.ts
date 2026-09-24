@@ -19,7 +19,23 @@ describe("lead request validation", () => {
   it("normalizes the email and admits exactly the agreed contact fields", () => {
     expect(parseLeadRequest({ ...input, email: " TEST@Example.com " })).toEqual({
       ok: true,
-      lead: input,
+      lead: { ...input, attribution: {} },
+    });
+  });
+
+  it("keeps only allow-listed attribution values and never fails on them", () => {
+    expect(
+      parseLeadRequest({
+        ...input,
+        attribution: { source: "meta", content: "H1-krok", medium: "cpc", email: "x@y.pl" },
+      }),
+    ).toEqual({ ok: true, lead: { ...input, attribution: { source: "meta", content: "H1-krok" } } });
+    expect(
+      parseLeadRequest({ ...input, attribution: { source: "meta<script>", content: "a".repeat(65) } }),
+    ).toEqual({ ok: true, lead: { ...input, attribution: {} } });
+    expect(parseLeadRequest({ ...input, attribution: "meta" })).toEqual({
+      ok: true,
+      lead: { ...input, attribution: {} },
     });
   });
 

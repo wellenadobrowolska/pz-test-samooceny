@@ -4,6 +4,7 @@ import {
   type LeadErrorCode,
 } from "../../domain/leads/contract";
 import { TEST_VERSION } from "../../domain/self-esteem-v2/questions";
+import { readAttribution } from "../attribution";
 
 const ERROR_MESSAGES: Record<LeadErrorCode, string> = {
   invalid_request:
@@ -48,6 +49,8 @@ export async function submitLead(input: {
 }): Promise<void> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 22_000);
+  // Źródło wejścia (utm_source, utm_content) — do pól pz_* w MailerLite.
+  const attribution = readAttribution();
 
   try {
     const response = await fetch("/api/leads", {
@@ -63,6 +66,7 @@ export async function submitLead(input: {
         testVersion: TEST_VERSION,
         submissionId: input.submissionId,
         website: input.website,
+        ...(attribution ? { attribution } : {}),
       }),
     });
 
